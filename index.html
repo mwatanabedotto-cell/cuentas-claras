@@ -147,6 +147,8 @@ body{margin:0}
 .tc input{width:6.5em;padding:6px 8px}
 .tc small{flex-basis:100%;color:var(--muted);font-size:12px}
 .chip.cur{background:var(--blue-soft);color:var(--blue)}
+.subg{display:flex;flex-direction:column;gap:12px}
+.subg h3{margin:4px 0 0;font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
 .restbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--amber-soft);border-radius:10px;padding:10px;font-size:13px}
 </style>
 </head>
@@ -222,9 +224,14 @@ body{margin:0}
       </div>
       <div class="field"><label class="lbl" for="dNombre">Persona o entidad</label><input id="dNombre" required placeholder="Ej.: Banco Unión, Juan"></div>
       <div class="field"><label class="lbl" for="dMonto">Monto total (Bs)</label><input id="dMonto" type="number" inputmode="decimal" step="0.01" min="0.01" required></div>
-      <div class="field"><label class="lbl" for="dDia">Día de pago (cada mes)</label><input id="dDia" type="number" inputmode="numeric" min="1" max="31" step="1" placeholder="Ej.: 15"><small>Te avisa cuando se acerca y si se pasó.</small></div>
-      <div class="field"><label class="lbl" for="dCuota">Cuota mensual (Bs)</label><input id="dCuota" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Opcional"></div>
-      <div class="field"><label class="lbl" for="dVence">Fecha límite final</label><input id="dVence" type="date"><small>Opcional: cuándo debe quedar saldada.</small></div>
+      <div class="field full"><span class="lbl">Forma de pago</span>
+        <div class="seg"><label><input type="radio" name="dForma" id="dFormaU" value="unico" checked><span>Pago único</span></label><label><input type="radio" name="dForma" id="dFormaC" value="cuotas"><span>Pagos recurrentes (cuotas)</span></label></div>
+      </div>
+      <div class="field soloU"><label class="lbl" for="dFechaU"><span class="vPC">Fecha de pago</span></label><input id="dFechaU" type="date"><small>Opcional. Te avisa cuando se acerca y si se pasó.</small></div>
+      <div class="field soloC"><label class="lbl" for="dDia">Día de <span class="vpc">pago</span> (cada mes)</label><input id="dDia" type="number" inputmode="numeric" min="1" max="31" step="1" placeholder="Ej.: 15"><small>Te avisa cuando se acerca y si se pasó.</small></div>
+      <div class="field soloC"><label class="lbl" for="dCuota">Monto de cada cuota (Bs)</label><input id="dCuota" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Ej.: 500"></div>
+      <div class="field soloC"><label class="lbl" for="dN">Número de cuotas</label><input id="dN" type="number" inputmode="numeric" min="1" step="1" placeholder="Se calcula si lo dejas vacío"></div>
+      <div class="field soloC"><label class="lbl" for="dVence">Fecha límite final</label><input id="dVence" type="date"><small>Opcional: cuándo debe quedar saldada.</small></div>
       <div class="field" id="dResField"><label class="lbl" for="dRes">Saldo reservado (Bs)</label><input id="dRes" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00"><small>Dinero que ya apartaste para pagarla.</small></div>
       <div class="field full"><label class="lbl" for="dNota">Nota</label><input id="dNota" placeholder="Ej.: préstamo para el equipo de ecografía"></div>
       <div class="actions"><button type="button" class="ghost" id="dCancel">Cancelar</button><button class="primary" type="submit" id="dSave">Guardar deuda</button></div>
@@ -331,8 +338,8 @@ function hojas(){
   const g=state.gastos.slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
   const H={};
   H["Gastos"]=[["Fecha","Descripción","Categoría","Pagado con","Monto (Bs)"]].concat(g.map(x=>[x.fecha,x.desc,x.cat,x.metodo||"",+x.monto||0]));
-  H["Deudas"]=[["Tipo","Persona o entidad","Monto total (Bs)","Pagado (Bs)","Saldo (Bs)","Reservado (Bs)","Día de pago","Cuota (Bs)","Próximo pago","Fecha límite","Estado","Nota"]]
-    .concat(state.deudas.map(d=>[d.tipo==="meDeben"?"Me deben":"Yo debo",d.nombre,+d.monto||0,r2(pagado(d)),saldo(d),+d.reservado||0,d.diaPago||"",+d.cuota||0,proxPago(d)||"",d.vence||"",estados(d).map(e=>e.t).join(" · "),d.nota||""]));
+  H["Deudas"]=[["Tipo","Forma de pago","Cuotas","Persona o entidad","Monto total (Bs)","Pagado (Bs)","Saldo (Bs)","Reservado (Bs)","Día de pago","Cuota (Bs)","Próximo pago","Fecha límite","Estado","Nota"]]
+    .concat(state.deudas.map(d=>[d.tipo==="meDeben"?"Me deben":"Yo debo",forma(d)==="cuotas"?"Recurrente (cuotas)":"Pago único",nCuotas(d)?((d.pagos||[]).length+" de "+nCuotas(d)):"",d.nombre,+d.monto||0,r2(pagado(d)),saldo(d),+d.reservado||0,d.diaPago||"",+d.cuota||0,proxPago(d)||"",d.vence||"",estados(d).map(e=>e.t).join(" · "),d.nota||""]));
   const pg=[];state.deudas.forEach(d=>(d.pagos||[]).forEach(p=>pg.push([d.nombre,d.tipo==="meDeben"?"Cobro":"Pago",p.fecha,+p.monto||0,+p.deReserva||0])));
   pg.sort((a,b)=>String(a[2]).localeCompare(String(b[2])));
   H["Pagos y cobros"]=[["Deuda","Tipo","Fecha","Monto (Bs)","Tomado de reserva (Bs)"]].concat(pg);
@@ -401,13 +408,19 @@ const saldo=d=>Math.max(0,r2((+d.monto||0)-pagado(d)));
 const abierta=d=>saldo(d)>0.004;
 const saldoFondo=f=>r2((f.movs||[]).reduce((s,m)=>s+(+m.monto||0),0));
 // Próxima fecha de pago según el día de pago mensual
+const forma=d=>d.forma==="cuotas"||d.forma==="unico"?d.forma:((d.diaPago||d.cuota)?"cuotas":"unico");
+const nCuotas=d=>forma(d)!=="cuotas"?0:(+d.nCuotas||(+d.cuota>0?Math.ceil((+d.monto||0)/d.cuota-1e-9):0));
 function proxPago(d){
-  if(!d.diaPago||!abierta(d))return null;
+  if(!abierta(d))return null;
+  if(forma(d)==="unico")return d.vence||null;
+  if(!d.diaPago)return null;
   const t=new Date(hoy()+"T12:00:00");let y=t.getFullYear(),m=t.getMonth();
   const dim=(y,m)=>new Date(y,m+1,0).getDate();
   const pagoEsteMes=(d.pagos||[]).some(p=>(p.fecha||"").slice(0,7)===mesActual());
-  if(pagoEsteMes){m++;if(m>11){m=0;y++}}
-  return iso(y,m,Math.min(d.diaPago,dim(y,m)));
+  let f=iso(y,m,Math.min(d.diaPago,dim(y,m)));
+  const creado=d.creado?new Date(d.creado).toLocaleDateString("sv"):"";
+  if(pagoEsteMes||(creado&&f<creado)){m++;if(m>11){m=0;y++}f=iso(y,m,Math.min(d.diaPago,dim(y,m)))}
+  return f;
 }
 function estados(d){
   const out=[],deb=d.tipo!=="meDeben";
@@ -419,11 +432,13 @@ function estados(d){
     else if(n<=5)out.push({t:`${w} en ${n} d · ${diaMes(p)}`,c:"amber"});
     else out.push({t:`${w} el ${diaMes(p)}`,c:""});
   }
-  if(d.vence){const n=diasHasta(d.vence);
+  if(forma(d)==="cuotas"){const n=nCuotas(d),k=(d.pagos||[]).length;out.unshift({t:n?`Cuota ${Math.min(k+1,n)} de ${n}`:"En cuotas",c:"blue"})}
+  else out.unshift({t:"Pago único",c:"blue"});
+  if(d.vence&&forma(d)==="cuotas"){const n=diasHasta(d.vence);
     if(n<0)out.push({t:"Venció el "+fechaCorta(d.vence),c:"red"});
     else out.push({t:"Límite "+fechaCorta(d.vence),c:"grey"});
   }
-  if(!out.length)out.push({t:"Pendiente",c:""});
+  if(out.length===1)out.push({t:"Sin fecha",c:"grey"});
   return out;
 }
 
@@ -503,7 +518,7 @@ function deudaCard(d){
   const falta=Math.max(0,r2(Math.min(s,d.cuota||s)-res));
   return `<article class="card2 ${tipo}${s<=0.004?" done":""}">
     <div class="top"><div style="min-width:0"><div class="who">${esc(d.nombre)}</div>
-      <div class="sub">Total ${fmt(d.monto)}${d.cuota?" · cuota "+fmt(d.cuota):""}${d.diaPago?" · día "+d.diaPago+" de cada mes":""}</div>
+      <div class="sub">Total ${fmt(d.monto)}${forma(d)==="cuotas"?(d.cuota?" · cuota "+fmt(d.cuota):"")+(d.diaPago?" · día "+d.diaPago+" de cada mes":"")+(nCuotas(d)?` · ${(d.pagos||[]).length} de ${nCuotas(d)} ${deb?"pagadas":"cobradas"}`:""):(d.vence?" · "+(deb?"pagar":"cobrar")+" el "+fechaCorta(d.vence):"")}</div>
       ${d.nota?`<div class="sub">${esc(d.nota)}</div>`:""}</div>
       <div class="big"><div class="eyebrow">Saldo</div><div class="num">${fmt(s)}</div></div></div>
     <div class="progress" title="${pct.toFixed(0)}%"><div style="width:${pct}%"></div></div>
@@ -527,8 +542,10 @@ function renderDeudas(){
       :`<div class="empty"><strong>Sin deudas registradas</strong><span>Registra lo que debes (préstamos, cuotas, tarjetas) y lo que te deben, con su día de pago. Cada pago descuenta el saldo y puedes ir reservando dinero para la próxima cuota.</span><div class="btns"><button class="red" data-act="nueva-deuda" data-tipo="debo">+ Yo debo</button><button class="primary" data-act="nueva-deuda" data-tipo="meDeben">+ Me deben</button></div></div>`;
     return;
   }
+  const sub=(t,l)=>l.length?`<div class="subg"><h3><span>${t}</span><span class="num">${fmt(l.reduce((s,d)=>s+saldo(d),0))}</span></h3>${l.sort(orden).map(deudaCard).join("")}</div>`:"";
   const grupo=(tipo,titulo,list)=>{if(!list.length)return"";const tot=list.reduce((s,d)=>s+saldo(d),0);
-    return `<div class="group"><div class="group-head ${tipo}"><h2>${titulo}</h2><span class="num">${fmt(tot)}</span></div>${list.sort(orden).map(deudaCard).join("")}</div>`};
+    const u=list.filter(d=>forma(d)==="unico"),c=list.filter(d=>forma(d)==="cuotas");
+    return `<div class="group"><div class="group-head ${tipo}"><h2>${titulo}</h2><span class="num">${fmt(tot)}</span></div>${sub("Pagos únicos",u)}${sub("Pagos recurrentes (cuotas)",c)}</div>`};
   $("listaDeudas").innerHTML=grupo("debo","Yo debo",ds.filter(d=>d.tipo!=="meDeben"))+grupo("meDeben","Me deben",ds.filter(d=>d.tipo==="meDeben"));
 }
 
@@ -588,14 +605,23 @@ $("fGasto").addEventListener("submit",e=>{
 $("mes").onchange=render;
 
 /* ---------- Deuda ---------- */
-function syncResField(){$("dResField").hidden=$("dTipoMe").checked}
+function syncResField(){
+  const me=$("dTipoMe").checked,c=$("dFormaC").checked;
+  $("dResField").hidden=me;
+  document.querySelectorAll("#fDeuda .soloU").forEach(e=>e.hidden=c);
+  document.querySelectorAll("#fDeuda .soloC").forEach(e=>e.hidden=!c);
+  document.querySelectorAll("#fDeuda .vPC").forEach(e=>e.textContent=me?"Fecha de cobro":"Fecha de pago");
+  document.querySelectorAll("#fDeuda .vpc").forEach(e=>e.textContent=me?"cobro":"pago");
+}
+document.querySelectorAll('input[name="dForma"]').forEach(r=>r.addEventListener("change",syncResField));
 document.querySelectorAll('input[name="dTipo"]').forEach(r=>r.onchange=()=>{syncResField();$("dTitulo").textContent=ui.editDeuda?"Editar deuda":($("dTipoMe").checked?"Nueva: me deben":"Nueva: yo debo")});
 function abrirDeuda(tipo,d){
   setTab("deudas");
   ui.editDeuda=d?d.id:null;$("fDeuda").reset();
   const t=d?(d.tipo==="meDeben"?"meDeben":"debo"):tipo;
   $("dTipoDebo").checked=t==="debo";$("dTipoMe").checked=t==="meDeben";
-  if(d){$("dNombre").value=d.nombre||"";$("dMonto").value=d.monto||"";$("dDia").value=d.diaPago||"";$("dCuota").value=d.cuota||"";$("dVence").value=d.vence||"";$("dRes").value=d.reservado||"";$("dNota").value=d.nota||""}
+  const fo=d?forma(d):"unico";$("dFormaU").checked=fo==="unico";$("dFormaC").checked=fo==="cuotas";
+  if(d){$("dNombre").value=d.nombre||"";$("dMonto").value=d.monto||"";$("dDia").value=d.diaPago||"";$("dCuota").value=d.cuota||"";$("dN").value=d.nCuotas||"";$("dVence").value=fo==="cuotas"?(d.vence||""):"";$("dFechaU").value=fo==="unico"?(d.vence||""):"";$("dRes").value=d.reservado||"";$("dNota").value=d.nota||""}
   $("dTitulo").textContent=d?"Editar deuda":(t==="meDeben"?"Nueva: me deben":"Nueva: yo debo");
   $("dSave").textContent=d?"Guardar cambios":"Guardar deuda";
   syncResField();$("fDeuda").hidden=false;$("dNombre").focus();
@@ -606,9 +632,12 @@ $("dCancel").onclick=()=>{$("fDeuda").hidden=true;ui.editDeuda=null};
 $("fDeuda").addEventListener("submit",e=>{
   e.preventDefault();
   const tipo=$("dTipoMe").checked?"meDeben":"debo";
-  const dia=parseInt($("dDia").value,10);
-  const o={tipo,nombre:$("dNombre").value.trim(),monto:r2($("dMonto").value),diaPago:dia>=1&&dia<=31?dia:0,
-    cuota:r2($("dCuota").value),vence:$("dVence").value||"",reservado:tipo==="debo"?r2($("dRes").value):0,nota:$("dNota").value.trim()};
+  const dia=parseInt($("dDia").value,10),fo=$("dFormaC").checked?"cuotas":"unico",monto=r2($("dMonto").value);
+  let cuota=r2($("dCuota").value),n=parseInt($("dN").value,10)||0;
+  if(fo==="cuotas"){if(!cuota&&n>0)cuota=r2(monto/n);if(cuota>0&&!n)n=Math.ceil(monto/cuota-1e-9)}
+  const o={tipo,forma:fo,nombre:$("dNombre").value.trim(),monto,
+    diaPago:fo==="cuotas"&&dia>=1&&dia<=31?dia:0,cuota:fo==="cuotas"?cuota:0,nCuotas:fo==="cuotas"?n:0,
+    vence:(fo==="cuotas"?$("dVence").value:$("dFechaU").value)||"",reservado:tipo==="debo"?r2($("dRes").value):0,nota:$("dNota").value.trim()};
   if(!o.nombre||!(o.monto>0))return;
   if(ui.editDeuda)safe(store.update("deudas",ui.editDeuda,o),"Deuda actualizada");
   else{o.pagos=[];o.creado=Date.now();safe(store.add("deudas",o),tipo==="debo"?"Deuda registrada":"Cobro pendiente registrado");$("fEstado").value="abiertas"}
