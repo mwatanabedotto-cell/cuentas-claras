@@ -1,0 +1,22 @@
+CUENTAS CLARAS — instalar como app en el celular
+
+Para instalarla, la carpeta tiene que estar en internet con dirección https.
+La forma gratis más simple es GitHub Pages:
+
+1. Entra a github.com e inicia sesión (o crea una cuenta gratis).
+2. Crea un repositorio nuevo, por ejemplo "cuentas-claras", público.
+3. Toca "uploading an existing file" y sube TODO el contenido de esta carpeta
+   (index.html, manifest.webmanifest, sw.js y la carpeta icons). Confirma con "Commit changes".
+4. Ve a Settings > Pages. En "Branch" elige "main" y "/ (root)". Guarda.
+5. En 1–2 minutos tendrás la dirección: https://TU-USUARIO.github.io/cuentas-claras/
+
+En el celular:
+- Android (Chrome): abre la dirección y toca "Instalar app" en la página
+  (o el menú ⋮ > "Instalar aplicación").
+- iPhone (Safari): abre la dirección, toca Compartir > "Agregar a pantalla de inicio".
+
+Una vez instalada funciona sin internet y los datos quedan guardados en el teléfono.
+
+IMPORTANTE: la app instalada guarda sus datos aparte del archivo HTML que usabas antes.
+Para pasar tus datos: en la versión anterior toca "Descargar respaldo", y en la app
+instalada toca "Restaurar respaldo" y elige ese archivo .json.
