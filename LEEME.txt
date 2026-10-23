@@ -20,3 +20,15 @@ Una vez instalada funciona sin internet y los datos quedan guardados en el telé
 IMPORTANTE: la app instalada guarda sus datos aparte del archivo HTML que usabas antes.
 Para pasar tus datos: en la versión anterior toca "Descargar respaldo", y en la app
 instalada toca "Restaurar respaldo" y elige ese archivo .json.
+
+NOVEDADES (versión 2)
+- Ingresos y balance del mes, con gráfico de los últimos 6 meses.
+- Dinero disponible por moneda (Bs, US$, R$) y cambio de moneda: indicas cuánto entregas
+  y cuánto recibes, y ese monto pasa al disponible de la otra moneda.
+- Gastos e ingresos en Bs, US$ o R$.
+- Presupuesto mensual por categoría, categorías y tipos de ingreso personalizables.
+- Gastos fijos mensuales (con opción de anotarse solos).
+- Las cuotas atrasadas de meses anteriores ahora se detectan y suman.
+- Buscador y filtros de gastos, "Deshacer" al borrar, tema claro/oscuro, aviso de respaldo.
+- Al actualizar desde la versión 1, el disponible empieza a contar desde ese día:
+  usa "Ajustar saldo" en la pestaña Monedas para poner cuánto tienes de verdad.

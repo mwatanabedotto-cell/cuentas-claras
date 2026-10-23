@@ -1,5 +1,5 @@
 // Cuentas Claras: funciona sin internet una vez instalada
-const CACHE = "cuentas-claras-v1";
+const CACHE = "cuentas-claras-v2";
 const BASE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 const EXTRA = ["https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"];
 self.addEventListener("install", e => {
