@@ -201,6 +201,11 @@ body{margin:0}
 table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 table.tbl th,table.tbl td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right}
 table.tbl th:first-child,table.tbl td:first-child{text-align:left}
+.mon-list{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:0 10px}
+.mon-row{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.mon-row:last-child{border-bottom:0}
+.mon-row .code{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto}
+.mon-sep{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 0 4px}
 details summary{cursor:pointer;font-size:13px;color:var(--muted)}
 </style>
 </head>
@@ -374,10 +379,9 @@ details summary{cursor:pointer;font-size:13px;color:var(--muted)}
     <div class="note" id="dispNota"></div>
     <div class="disp-grid" id="dispCards"></div>
 
-    <div class="tc">
+    <div class="tc" id="tcBox">
       <span class="lbl">Tipo de cambio</span>
-      <label>1 US$ = <input type="text" class="money" id="tcUSD" inputmode="decimal" autocomplete="off" placeholder="6,96"> Bs</label>
-      <label>1 R$ = <input type="text" class="money" id="tcBRL" inputmode="decimal" autocomplete="off" placeholder="1,25"> Bs</label>
+      <span id="tcIns" style="display:contents"></span>
       <small>Se usa para sumar todo en bolivianos. Actualízalo cuando cambie, o guárdalo al registrar un cambio de moneda.</small>
     </div>
 
@@ -403,6 +407,12 @@ details summary{cursor:pointer;font-size:13px;color:var(--muted)}
       <div class="field"><label class="lbl" for="ajDesde">Contar el dinero disponible desde</label>
         <div class="money-row"><input id="ajDesde" type="date" style="width:auto"><button type="button" class="small ghost" id="ajDesdeX">Desde siempre</button></div>
         <small>Los ingresos, gastos y cambios anteriores a esta fecha no cuentan en el disponible (sí en los reportes).</small></div>
+    </div>
+    <div class="box">
+      <div class="subhead"><h2>Monedas favoritas</h2><span class="eyebrow" id="favInfo"></span></div>
+      <span class="note">Solo las monedas marcadas aparecen en los formularios, en el dinero disponible y en el tipo de cambio. El boliviano es la moneda base.</span>
+      <input id="monBuscar" type="search" placeholder="Buscar moneda (nombre o código, ej.: euro, ARS)…" aria-label="Buscar moneda">
+      <div id="admMonedas" class="mon-list"></div>
     </div>
     <div class="box">
       <div class="subhead"><h2>Categorías de gastos</h2><span class="eyebrow">presupuesto mensual (Bs)</span></div>
@@ -440,9 +450,15 @@ const KINDS=["gastos","ingresos","deudas","ahorros","cambios","ajustes","fijos"]
 const DEF_CATS=["Alimentación","Transporte","Vivienda y servicios","Salud","Educación","Trabajo","Ocio","Familia","Deudas y préstamos","Otros"];
 const DEF_FUENTES=["Sueldo","Honorarios","Ventas","Cobro de deudas","Regalos","Otros"];
 const METODOS=["Efectivo","QR","Tarjeta","Transferencia"];
-const CUR=["BOB","USD","BRL"];
-const SIMB={BOB:"Bs",USD:"US$",BRL:"R$"};
-const NOMBRE_CUR={BOB:"Bolivianos",USD:"Dólares",BRL:"Reales"};
+// Todas las monedas (ISO 4217); solo las favoritas se muestran en la app
+const CUR="AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XOF XPF YER ZAR ZMW ZWL".split(" ");
+const CURSET=new Set(CUR);
+const FAV_DEF=["BOB","USD","BRL"];
+const SIMB={BOB:"Bs",USD:"US$",BRL:"R$",EUR:"€",GBP:"£",ARS:"AR$",CLP:"CLP$",PEN:"S/",PYG:"₲",UYU:"$U",COP:"COL$",MXN:"MX$",CAD:"CA$",AUD:"A$",JPY:"¥",CNY:"CN¥",KRW:"₩",INR:"₹",VES:"Bs.S"};
+const sym=c=>SIMB[c]||c||"Bs";
+const NOMBRE_DEF={BOB:"Boliviano",USD:"Dólar estadounidense",BRL:"Real brasileño",EUR:"Euro"};
+let nombresCur=null;try{nombresCur=new Intl.DisplayNames(["es"],{type:"currency"})}catch(e){}
+const nombreCur=c=>{let n=null;try{n=nombresCur&&nombresCur.of(c)}catch(e){}n=n&&n!==c?n:(NOMBRE_DEF[c]||c);return n.charAt(0).toUpperCase()+n.slice(1)};
 const $=id=>document.getElementById(id);
 const hoy=()=>new Date().toLocaleDateString("sv");
 const mesActual=()=>hoy().slice(0,7);
@@ -458,9 +474,9 @@ function num(v){
 const r2=n=>Math.round(num(n)*100)/100;
 const r4=n=>Math.round(num(n)*10000)/10000;
 const fmtN=n=>(Number(n)||0).toLocaleString("es-BO",{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmtM=(n,c)=>{const v=Number(n)||0;return(v<0?"−":"")+SIMB[c||"BOB"]+" "+fmtN(Math.abs(v))};
+const fmtM=(n,c)=>{const v=Number(n)||0;return(v<0?"−":"")+sym(c||"BOB")+" "+fmtN(Math.abs(v))};
 const fmt=n=>fmtM(n,"BOB");
-const curDe=x=>CUR.includes(x&&x.moneda)?x.moneda:"BOB";
+const curDe=x=>CURSET.has(x&&x.moneda)?x.moneda:"BOB";
 const monedaDe=curDe;
 const tasa=c=>c==="BOB"?1:(+((state.config||{})["tc"+c])||0);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -484,6 +500,8 @@ let ui={tab:"gastos",open:null,editGasto:null,editIngreso:null,editDeuda:null,ed
 
 const cats=()=>Array.isArray(state.config.cats)&&state.config.cats.length?state.config.cats:DEF_CATS;
 const fuentes=()=>Array.isArray(state.config.fuentes)&&state.config.fuentes.length?state.config.fuentes:DEF_FUENTES;
+const favs=()=>Array.isArray(state.config.favs)&&state.config.favs.length?state.config.favs:FAV_DEF;
+const ordenCur=list=>{const f=favs();return [...new Set(list)].sort((a,b)=>(f.includes(a)?f.indexOf(a):99)-(f.includes(b)?f.indexOf(b):99)||a.localeCompare(b))};
 const presup=()=>state.config.presup&&typeof state.config.presup==="object"?state.config.presup:{};
 
 /* ---------- Almacenamiento local en el teléfono: IndexedDB (con copia en localStorage) ---------- */
@@ -501,7 +519,7 @@ function normalizar(r){
   const arr=v=>(Array.isArray(v)?v:[]).filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
   const ids=new Set();const fixId=x=>{let id=typeof x.id==="string"&&x.id?x.id:uid();while(ids.has(id))id=uid();ids.add(id);return id};
   const fecha=f=>typeof f==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(f)?f:"";
-  const cur=c=>CUR.includes(c)?c:"BOB";
+  const cur=c=>CURSET.has(c)?c:"BOB";
   o.gastos=arr(src.gastos).map(x=>({...x,id:fixId(x),desc:String(x.desc??""),monto:r2(x.monto),moneda:cur(x.moneda),fecha:fecha(x.fecha)||hoy(),cat:String(x.cat||"Otros"),metodo:String(x.metodo||"")})).filter(x=>x.monto>0);
   o.ingresos=arr(src.ingresos).map(x=>({...x,id:fixId(x),desc:String(x.desc??""),monto:r2(x.monto),moneda:cur(x.moneda),fecha:fecha(x.fecha)||hoy(),fuente:String(x.fuente||"Otros")})).filter(x=>x.monto>0);
   o.deudas=arr(src.deudas).map(d=>({...d,id:fixId(d),tipo:d.tipo==="meDeben"?"meDeben":"debo",nombre:String(d.nombre??""),monto:r2(d.monto),reservado:Math.max(0,r2(d.reservado)),cuota:Math.max(0,r2(d.cuota)),diaPago:Math.min(31,Math.max(0,parseInt(d.diaPago,10)||0)),nCuotas:Math.max(0,parseInt(d.nCuotas,10)||0),vence:fecha(d.vence),
@@ -512,7 +530,8 @@ function normalizar(r){
   o.ajustes=arr(src.ajustes).map(x=>({...x,id:fixId(x),moneda:cur(x.moneda),monto:r2(x.monto),fecha:fecha(x.fecha)||hoy(),nota:String(x.nota||"")})).filter(x=>x.monto!==0);
   o.fijos=arr(src.fijos).map(x=>({...x,id:fixId(x),desc:String(x.desc??""),monto:r2(x.monto),moneda:cur(x.moneda),dia:Math.min(31,Math.max(1,parseInt(x.dia,10)||1)),cat:String(x.cat||"Otros"),metodo:String(x.metodo||""),auto:!!x.auto})).filter(x=>x.monto>0);
   const c=src.config&&typeof src.config==="object"&&!Array.isArray(src.config)?{...src.config}:{};
-  ["tcUSD","tcBRL"].forEach(k=>{c[k]=Math.max(0,r4(c[k]))});
+  Object.keys(c).filter(k=>/^tc[A-Z]{3}$/.test(k)).forEach(k=>{if(CURSET.has(k.slice(2)))c[k]=Math.max(0,r4(c[k]));else delete c[k]});
+  if(c.favs){const f=Array.isArray(c.favs)?c.favs.filter(x=>CURSET.has(x)):[];c.favs=f.includes("BOB")?f:["BOB"].concat(f)}
   if(c.cats&&!(Array.isArray(c.cats)&&c.cats.every(x=>typeof x==="string")))delete c.cats;
   if(c.fuentes&&!(Array.isArray(c.fuentes)&&c.fuentes.every(x=>typeof x==="string")))delete c.fuentes;
   if(c.presup&&(typeof c.presup!=="object"||Array.isArray(c.presup)))delete c.presup;
@@ -642,15 +661,15 @@ function sumBs(list){let t=0,falta=0,ext=0;list.forEach(x=>{const v=eqBs(x);if(c
 const enMes=(list,m)=>list.filter(x=>(x.fecha||"").startsWith(m));
 const enRango=f=>{const d=state.config.dispDesde;return !d||(f||"")>=d};
 function disponible(){
-  const d={BOB:0,USD:0,BRL:0};const add=(c,v)=>{d[c]=(d[c]||0)+v};
+  const d={};favs().forEach(c=>d[c]=0);const add=(c,v)=>{d[c]=(d[c]||0)+v};
   state.ingresos.forEach(x=>enRango(x.fecha)&&add(curDe(x),+x.monto||0));
   state.gastos.forEach(x=>!x.antes&&enRango(x.fecha)&&add(curDe(x),-(+x.monto||0)));
   state.ajustes.forEach(x=>enRango(x.fecha)&&add(curDe(x),+x.monto||0));
   state.cambios.forEach(x=>{if(enRango(x.fecha)){add(x.de,-x.montoDe);add(x.a,+x.montoA)}});
   state.ahorros.forEach(f=>(f.movs||[]).forEach(m=>{if(m.disp&&enRango(m.fecha))add(monedaDe(f),-(+m.monto||0))}));
-  CUR.forEach(c=>d[c]=r2(d[c]));return d;
+  Object.keys(d).forEach(c=>d[c]=r2(d[c]));return d;
 }
-const usadas=d=>CUR.filter(c=>c==="BOB"||Math.abs(d[c])>0.004||state.cambios.some(x=>x.de===c||x.a===c)||state.ingresos.some(x=>curDe(x)===c)||state.gastos.some(x=>curDe(x)===c));
+const usadas=d=>ordenCur(Object.keys(d).filter(c=>c==="BOB"||Math.abs(d[c])>0.004));
 const catDeuda=()=>cats().includes("Deudas y préstamos")?"Deudas y préstamos":"Otros";
 const fuenteCobro=()=>fuentes().includes("Cobro de deudas")?"Cobro de deudas":"Otros";
 
@@ -678,31 +697,31 @@ function hojas(){
   const ing=state.ingresos.slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
   const eq=x=>{const v=eqBs(x);return v==null?"":r2(v)};
   const H={};
-  H["Gastos"]=[["Fecha","Descripción","Categoría","Pagado con","Moneda","Monto","Equivalente en Bs"]].concat(g.map(x=>[x.fecha,x.desc,x.cat,x.metodo||"",SIMB[curDe(x)],+x.monto||0,eq(x)]));
-  H["Ingresos"]=[["Fecha","Descripción","Tipo","Moneda","Monto","Equivalente en Bs"]].concat(ing.map(x=>[x.fecha,x.desc,x.fuente,SIMB[curDe(x)],+x.monto||0,eq(x)]));
+  H["Gastos"]=[["Fecha","Descripción","Categoría","Pagado con","Moneda","Monto","Equivalente en Bs"]].concat(g.map(x=>[x.fecha,x.desc,x.cat,x.metodo||"",sym(curDe(x)),+x.monto||0,eq(x)]));
+  H["Ingresos"]=[["Fecha","Descripción","Tipo","Moneda","Monto","Equivalente en Bs"]].concat(ing.map(x=>[x.fecha,x.desc,x.fuente,sym(curDe(x)),+x.monto||0,eq(x)]));
   H["Deudas"]=[["Tipo","Forma de pago","Cuotas","Persona o entidad","Monto total (Bs)","Pagado (Bs)","Saldo (Bs)","Reservado (Bs)","Día de pago","Cuota (Bs)","Próximo pago","Atrasado (Bs)","Fecha límite","Estado","Nota"]]
     .concat(state.deudas.map(d=>{const ip=infoPago(d);return[d.tipo==="meDeben"?"Me deben":"Yo debo",forma(d)==="cuotas"?"Recurrente (cuotas)":"Pago único",nCuotas(d)?(Math.min(ip.k,nCuotas(d))+" de "+nCuotas(d)):"",d.nombre,+d.monto||0,r2(pagado(d)),saldo(d),+d.reservado||0,d.diaPago||"",+d.cuota||0,ip.prox||"",ip.montoAtr||0,d.vence||"",estados(d).map(e=>e.t).join(" · "),d.nota||""]}));
   const pg=[];state.deudas.forEach(d=>(d.pagos||[]).forEach(p=>pg.push([d.nombre,d.tipo==="meDeben"?"Cobro":"Pago",p.fecha,+p.monto||0,+p.deReserva||0])));
   pg.sort((a,b)=>String(a[2]).localeCompare(String(b[2])));
   H["Pagos y cobros"]=[["Deuda","Tipo","Fecha","Monto (Bs)","Tomado de reserva (Bs)"]].concat(pg);
-  H["Ahorro"]=[["Fondo","Moneda","Meta","Ahorrado","Falta","Equivalente en Bs","Fecha objetivo"]].concat(state.ahorros.map(f=>{const c=monedaDe(f),s=saldoFondo(f),m=+f.meta||0;return[f.nombre,SIMB[c],m,s,m?Math.max(0,r2(m-s)):"",tasa(c)?r2(s*tasa(c)):"",f.fechaObj||""]}));
-  const mv=[];state.ahorros.forEach(f=>(f.movs||[]).forEach(m=>mv.push([f.nombre,SIMB[monedaDe(f)],m.fecha,m.monto<0?"Retiro":"Depósito",+m.monto||0,m.disp?"Sí":"No",m.nota||""])));
+  H["Ahorro"]=[["Fondo","Moneda","Meta","Ahorrado","Falta","Equivalente en Bs","Fecha objetivo"]].concat(state.ahorros.map(f=>{const c=monedaDe(f),s=saldoFondo(f),m=+f.meta||0;return[f.nombre,sym(c),m,s,m?Math.max(0,r2(m-s)):"",tasa(c)?r2(s*tasa(c)):"",f.fechaObj||""]}));
+  const mv=[];state.ahorros.forEach(f=>(f.movs||[]).forEach(m=>mv.push([f.nombre,sym(monedaDe(f)),m.fecha,m.monto<0?"Retiro":"Depósito",+m.monto||0,m.disp?"Sí":"No",m.nota||""])));
   mv.sort((a,b)=>String(a[2]).localeCompare(String(b[2])));
   H["Movimientos ahorro"]=[["Fondo","Moneda","Fecha","Tipo","Monto","Desde/hacia disponible","Nota"]].concat(mv);
-  H["Cambios de moneda"]=[["Fecha","Entregué","Monto entregado","Recibí","Monto recibido","Tasa","Nota"]].concat(state.cambios.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,SIMB[x.de],x.montoDe,SIMB[x.a],x.montoA,tasaTxt(x),x.nota||""]));
-  H["Ajustes de saldo"]=[["Fecha","Moneda","Ajuste","Nota"]].concat(state.ajustes.map(x=>[x.fecha,SIMB[curDe(x)],x.monto,x.nota||""]));
-  H["Gastos fijos"]=[["Descripción","Moneda","Monto","Día","Categoría","Pagado con","Automático"]].concat(state.fijos.map(f=>[f.desc,SIMB[curDe(f)],f.monto,f.dia,f.cat,f.metodo||"",f.auto?"Sí":"No"]));
+  H["Cambios de moneda"]=[["Fecha","Entregué","Monto entregado","Recibí","Monto recibido","Tasa","Nota"]].concat(state.cambios.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,sym(x.de),x.montoDe,sym(x.a),x.montoA,tasaTxt(x),x.nota||""]));
+  H["Ajustes de saldo"]=[["Fecha","Moneda","Ajuste","Nota"]].concat(state.ajustes.map(x=>[x.fecha,sym(curDe(x)),x.monto,x.nota||""]));
+  H["Gastos fijos"]=[["Descripción","Moneda","Monto","Día","Categoría","Pagado con","Automático"]].concat(state.fijos.map(f=>[f.desc,sym(curDe(f)),f.monto,f.dia,f.cat,f.metodo||"",f.auto?"Sí":"No"]));
   const porMes={};g.forEach(x=>{const m=(x.fecha||"").slice(0,7);porMes[m]=porMes[m]||[0,0];porMes[m][1]+=eqBs(x)||0});
   ing.forEach(x=>{const m=(x.fecha||"").slice(0,7);porMes[m]=porMes[m]||[0,0];porMes[m][0]+=eqBs(x)||0});
   const ab=state.deudas.filter(abierta),disp=disponible();
   H["Resumen"]=[["Concepto","Monto"],
-    ...CUR.filter(c=>c==="BOB"||disp[c]).map(c=>["Disponible en "+SIMB[c],disp[c]]),
+    ...usadas(disp).map(c=>["Disponible en "+sym(c),disp[c]]),
     ["Yo debo (saldo, Bs)",r2(ab.filter(d=>d.tipo!=="meDeben").reduce((s,d)=>s+saldo(d),0))],
     ["Me deben (saldo, Bs)",r2(ab.filter(d=>d.tipo==="meDeben").reduce((s,d)=>s+saldo(d),0))],
     ["Reservado para deudas (Bs)",r2(ab.filter(d=>d.tipo!=="meDeben").reduce((s,d)=>s+(+d.reservado||0),0))],
-    ...CUR.filter(c=>state.ahorros.some(f=>monedaDe(f)===c)).map(c=>["Ahorro en "+SIMB[c],r2(state.ahorros.filter(f=>monedaDe(f)===c).reduce((s,f)=>s+saldoFondo(f),0))]),
+    ...ordenCur(state.ahorros.map(monedaDe)).map(c=>["Ahorro en "+sym(c),r2(state.ahorros.filter(f=>monedaDe(f)===c).reduce((s,f)=>s+saldoFondo(f),0))]),
     ...(state.ahorros.length&&state.ahorros.every(f=>tasa(monedaDe(f)))?[["Ahorro total equivalente en Bs",r2(state.ahorros.reduce((s,f)=>s+saldoFondo(f)*tasa(monedaDe(f)),0))]]:[]),
-    ...["USD","BRL"].filter(c=>tasa(c)).map(c=>["Tipo de cambio 1 "+SIMB[c]+" (Bs)",tasa(c)]),
+    ...ordenCur(CUR.filter(c=>c!=="BOB"&&tasa(c))).map(c=>["Tipo de cambio 1 "+sym(c)+" (Bs)",tasa(c)]),
     [],["Mes","Ingresos (Bs)","Gastos (Bs)","Balance (Bs)"]].concat(Object.keys(porMes).sort().map(m=>[nombreMes(m),r2(porMes[m][0]),r2(porMes[m][1]),r2(porMes[m][0]-porMes[m][1])]));
   return H;
 }
@@ -761,16 +780,18 @@ function toast(m,deshacer){
 }
 
 /* ---------- Selects ---------- */
+// Selecciona una moneda; si no es favorita (registro antiguo), la agrega solo a ese select
+function setCur(s,c){if(!s.querySelector(`option[value="${c}"]`))s.insertAdjacentHTML("beforeend",`<option value="${c}">${esc(nombreCur(c))} (${esc(sym(c))})</option>`);s.value=c}
 function opts(list,sel){return list.map(v=>`<option${v===sel?" selected":""}>${esc(v)}</option>`).join("")}
 function llenarSelects(){
-  document.querySelectorAll(".cur-sel").forEach(s=>{const v=s.value;s.innerHTML=CUR.map(c=>`<option value="${c}">${NOMBRE_CUR[c]} (${SIMB[c]})</option>`).join("");s.value=CUR.includes(v)?v:"BOB"});
+  document.querySelectorAll(".cur-sel").forEach(s=>{const v=s.value;s.innerHTML=favs().map(c=>`<option value="${c}">${esc(nombreCur(c))} (${esc(sym(c))})</option>`).join("");if(v&&CURSET.has(v))setCur(s,v);else s.value="BOB"});
   document.querySelectorAll(".met-sel").forEach(s=>{const v=s.value;s.innerHTML=opts(METODOS);if(METODOS.includes(v))s.value=v});
   const keep=(id,list)=>{const s=$(id),v=s.value;s.innerHTML=opts(list);if(list.includes(v))s.value=v};
   keep("gCat",cats());keep("fjCat",cats());keep("iFuente",fuentes());
   const usadasC=[...new Set(cats().concat(state.gastos.map(g=>g.cat)).filter(Boolean))];
   const fc=$("gFCat"),vc=fc.value;fc.innerHTML=`<option value="">Todas las categorías</option>`+usadasC.map(c=>`<option>${esc(c)}</option>`).join("");fc.value=usadasC.includes(vc)?vc:"";
   const fm=$("gFMet"),vm=fm.value;fm.innerHTML=`<option value="">Toda forma de pago</option>`+opts(METODOS);fm.value=METODOS.includes(vm)?vm:"";
-  if(!$("cbA").dataset.init){$("cbDe").value="BOB";$("cbA").value="USD";$("cbA").dataset.init=1}
+  if(!$("cbA").dataset.init||!favs().includes($("cbA").value)){$("cbDe").value="BOB";$("cbA").value=favs().find(c=>c!=="BOB")||"BOB";$("cbA").dataset.init=1}
 }
 
 /* ---------- Render ---------- */
@@ -810,8 +831,8 @@ function render(){
   const curs=Object.keys(porCur),faltaTasa=curs.some(c=>!tasa(c));
   if(!curs.length){$("tAho").textContent=fmt(0);$("tAhoSub").textContent="0 fondos"}
   else if(!faltaTasa){$("tAho").textContent=(curs.length>1||curs[0]!=="BOB"?"≈ ":"")+fmt(curs.reduce((s,c)=>s+porCur[c]*tasa(c),0));
-    $("tAhoSub").textContent=curs.length>1||curs[0]!=="BOB"?CUR.filter(c=>porCur[c]!=null).map(c=>fmtM(porCur[c],c)).join(" · "):plural(state.ahorros.length,"fondo","fondos")}
-  else{const ord=CUR.filter(c=>porCur[c]!=null);$("tAho").textContent=fmtM(porCur[ord[0]],ord[0]);
+    $("tAhoSub").textContent=curs.length>1||curs[0]!=="BOB"?ordenCur(curs).map(c=>fmtM(porCur[c],c)).join(" · "):plural(state.ahorros.length,"fondo","fondos")}
+  else{const ord=ordenCur(curs);$("tAho").textContent=fmtM(porCur[ord[0]],ord[0]);
     $("tAhoSub").textContent=ord.slice(1).map(c=>"+ "+fmtM(porCur[c],c)).join(" ")||plural(state.ahorros.length,"fondo","fondos")}
   $("tcAviso").hidden=!faltaTasa;
   $("cG").textContent=gMes.length;$("cI").textContent=iMes.length;$("cD").textContent=abiertas.length;$("cA").textContent=state.ahorros.length;
@@ -997,14 +1018,14 @@ function renderFondos(){
     const o=ui.open;let form="";
     if(o&&o.id===f.id&&(o.what==="dep"||o.what==="ret")){
       const dep=o.what==="dep";
-      form=`<form class="inline" data-form="${o.what}" data-id="${f.id}"><input type="text" class="money" id="mov-m" inputmode="decimal" autocomplete="off" placeholder="Monto (${SIMB[cur]})"><input type="date" id="mov-f" value="${hoy()}"><input type="text" id="mov-n" placeholder="Nota (opcional)">
-        <label class="check"><input type="checkbox" id="mov-disp" checked> ${dep?`Sacarlo de mi dinero disponible (tienes ${fmtM(disp[cur],cur)})`:"Pasarlo a mi dinero disponible"}</label>
+      form=`<form class="inline" data-form="${o.what}" data-id="${f.id}"><input type="text" class="money" id="mov-m" inputmode="decimal" autocomplete="off" placeholder="Monto (${sym(cur)})"><input type="date" id="mov-f" value="${hoy()}"><input type="text" id="mov-n" placeholder="Nota (opcional)">
+        <label class="check"><input type="checkbox" id="mov-disp" checked> ${dep?`Sacarlo de mi dinero disponible (tienes ${fmtM(disp[cur]||0,cur)})`:"Pasarlo a mi dinero disponible"}</label>
         <button class="${dep?"primary":"red"} small" type="submit">${dep?"Depositar":"Retirar"}</button><button type="button" class="ghost" data-act="close">Cancelar</button></form>`;
     }
     let ritmo="";
     if(meta&&f.fechaObj&&s<meta){const meses=Math.max(1,Math.ceil(diasHasta(f.fechaObj)/30.4));ritmo=diasHasta(f.fechaObj)>=0?` · ahorra ${fmt((meta-s)/meses)} al mes para llegar`:" · la fecha objetivo ya pasó"}
     return `<article class="card2 fondo">
-      <div class="top"><div style="min-width:0"><div class="who">${esc(f.nombre)} <span class="chip cur">${SIMB[cur]}</span></div>
+      <div class="top"><div style="min-width:0"><div class="who">${esc(f.nombre)} <span class="chip cur">${sym(cur)}</span></div>
         <div class="sub">${meta?"Meta "+fmt(meta):"Sin meta"}${f.fechaObj?" para el "+fechaCorta(f.fechaObj):""}${ritmo}</div></div>
         <div class="big"><div class="eyebrow">Ahorrado</div><div class="num">${fmt(s)}</div>${equiv}</div></div>
       ${meta?`<div class="progress"><div style="width:${pct}%"></div></div><div class="row"><span>${s>=meta?'<span class="chip">Meta alcanzada</span>':"Faltan "+fmt(meta-s)}</span><span class="num">${pct.toFixed(0)}%</span></div>`:""}
@@ -1019,18 +1040,21 @@ function renderFondos(){
 function tasaTxt(x){
   const [ext,loc]=x.de==="BOB"?[x.a,x.de]:x.a==="BOB"?[x.de,x.a]:[x.de,x.a];
   const mExt=ext===x.de?x.montoDe:x.montoA,mLoc=loc===x.de?x.montoDe:x.montoA;
-  return mExt>0?`1 ${SIMB[ext]} = ${SIMB[loc]} ${(mLoc/mExt).toLocaleString("es-BO",{maximumFractionDigits:4})}`:"";
+  return mExt>0?`1 ${sym(ext)} = ${sym(loc)} ${(mLoc/mExt).toLocaleString("es-BO",{maximumFractionDigits:4})}`:"";
 }
 function renderMonedas(disp,cs,falta,totDisp){
   $("dispTotal").textContent=!falta&&cs.length>1?"Total ≈ "+fmt(totDisp):"";
   const desde=state.config.dispDesde;
   $("dispNota").innerHTML=desde?`Cuenta los movimientos desde el ${esc(fechaCorta(desde))}. Usa <b>Ajustar</b> para poner cuánto tienes de verdad.`:"Suma tus ingresos, resta tus gastos y mueve el dinero de un lado a otro con cada cambio de moneda.";
   const o=ui.open;
-  $("dispCards").innerHTML=CUR.map(c=>{
+  const otras=usadas(disp).filter(c=>!favs().includes(c));
+  $("dispNota").innerHTML+=otras.length?` <br>También tienes saldo en monedas que no son favoritas: ${otras.map(c=>esc(fmtM(disp[c],c))).join(", ")}. Márcalas en Ajustes para verlas aquí.`:"";
+  if(!(document.activeElement&&document.activeElement.classList.contains("tc-in")))pintarTC();
+  $("dispCards").innerHTML=favs().map(c=>{
     const ab=o&&o.id==="disp:"+c;
-    return `<div class="disp"><span class="eyebrow">${NOMBRE_CUR[c]}</span><span class="num${disp[c]<0?" neg":""}">${fmtM(disp[c],c)}</span>
-      ${c!=="BOB"&&tasa(c)?`<span class="note">≈ ${fmt(disp[c]*tasa(c))}</span>`:""}
-      ${ab?`<form class="inline" data-form="ajuste" data-cur="${c}"><input type="text" class="money" id="aj-m" inputmode="decimal" autocomplete="off" placeholder="Tengo realmente (${SIMB[c]})"><button class="primary small" type="submit">Guardar</button><button type="button" class="ghost" data-act="close">Cancelar</button></form>`
+    return `<div class="disp"><span class="eyebrow">${nombreCur(c)}</span><span class="num${disp[c]<0?" neg":""}">${fmtM(disp[c]||0,c)}</span>
+      ${c!=="BOB"&&tasa(c)?`<span class="note">≈ ${fmt((disp[c]||0)*tasa(c))}</span>`:""}
+      ${ab?`<form class="inline" data-form="ajuste" data-cur="${c}"><input type="text" class="money" id="aj-m" inputmode="decimal" autocomplete="off" placeholder="Tengo realmente (${sym(c)})"><button class="primary small" type="submit">Guardar</button><button type="button" class="ghost" data-act="close">Cancelar</button></form>`
         :`<span><button class="ghost small" data-act="ajustar" data-cur="${c}" style="padding:2px 0">Ajustar saldo</button></span>`}</div>`}).join("");
   infoCambio(disp);
   const h=state.cambios.map(x=>({k:"c",x})).concat(state.ajustes.map(x=>({k:"a",x}))).sort((a,b)=>b.x.fecha.localeCompare(a.x.fecha)||(b.x.creado||0)-(a.x.creado||0));
@@ -1041,21 +1065,21 @@ function renderMonedas(disp,cs,falta,totDisp){
 function infoCambio(disp){
   disp=disp||disponible();
   const de=$("cbDe").value,a=$("cbA").value,md=r2($("cbMontoDe").value),ma=r2($("cbMontoA").value);
-  $("cbDispDe").innerHTML=`Disponible: <span class="num${disp[de]<0?" neg":""}">${fmtM(disp[de],de)}</span>`;
+  const dd=disp[de]||0;$("cbDispDe").innerHTML=`Disponible: <span class="num${dd<0?" neg":""}">${fmtM(dd,de)}</span>`;
   let t="";
   if(de===a)t="Elige dos monedas distintas.";
-  else if(md>0&&ma>0){t="Tasa: "+tasaTxt({de,a,montoDe:md,montoA:ma});if(md>disp[de]+0.004)t+=` · Ojo: entregas más de lo que tienes disponible en ${SIMB[de]}.`}
+  else if(md>0&&ma>0){t="Tasa: "+tasaTxt({de,a,montoDe:md,montoA:ma});if(md>dd+0.004)t+=` · Ojo: entregas más de lo que tienes disponible en ${sym(de)}.`}
   $("cbInfo").textContent=t;
   const ext=de==="BOB"&&a!=="BOB"?a:a==="BOB"&&de!=="BOB"?de:null;
   $("cbTCWrap").hidden=!(ext&&md>0&&ma>0);
-  if(ext&&md>0&&ma>0){const r=ext===a?md/ma:ma/md;$("cbTCTxt").textContent=`Guardar 1 ${SIMB[ext]} = Bs ${r.toLocaleString("es-BO",{maximumFractionDigits:4})} como mi tipo de cambio`}
+  if(ext&&md>0&&ma>0){const r=ext===a?md/ma:ma/md;$("cbTCTxt").textContent=`Guardar 1 ${sym(ext)} = Bs ${r.toLocaleString("es-BO",{maximumFractionDigits:4})} como mi tipo de cambio`}
 }
 ["cbDe","cbA","cbMontoDe","cbMontoA"].forEach(id=>$(id).addEventListener("input",()=>infoCambio()));
 $("cbCalc").onclick=()=>{
   const de=$("cbDe").value,a=$("cbA").value,md=r2($("cbMontoDe").value);
   if(de===a){toast("Elige dos monedas distintas");return}
   if(!(md>0)){toast("Escribe cuánto entregas");$("cbMontoDe").focus();return}
-  if(!tasa(de)||!tasa(a)){toast("Primero define el tipo de cambio de "+(tasa(de)?SIMB[a]:SIMB[de]));$(tasa(de)?"tc"+a:"tc"+de).focus();return}
+  if(!tasa(de)||!tasa(a)){toast("Primero define el tipo de cambio de "+(tasa(de)?sym(a):sym(de)));const ti=document.querySelector(`.tc-in[data-cur="${tasa(de)?a:de}"]`);ti&&ti.focus();return}
   $("cbMontoA").value=r2(md*tasa(de)/tasa(a));$("cbTC").checked=false;infoCambio();
 };
 $("fCambio").addEventListener("submit",e=>{
@@ -1069,8 +1093,12 @@ $("fCambio").addEventListener("submit",e=>{
   $("cbMontoDe").value="";$("cbMontoA").value="";$("cbNota").value="";$("cbTC").checked=false;$("cbFecha").value=hoy();
   safe(store.add("cambios",o),`Cambio guardado: ${fmtM(md,de)} → ${fmtM(ma,a)}`);
 });
-function pintarTC(){$("tcUSD").value=tasa("USD")||"";$("tcBRL").value=tasa("BRL")||""}
-["USD","BRL"].forEach(c=>$("tc"+c).addEventListener("change",()=>{const v=r4($("tc"+c).value);state.config=Object.assign({},state.config,{["tc"+c]:v>0?v:0});pintarTC();render();safe(guardar(),"Tipo de cambio guardado")}));
+const TC_EJ={USD:"6,96",BRL:"1,25"};
+function pintarTC(){
+  const ext=favs().filter(c=>c!=="BOB");$("tcBox").hidden=!ext.length;
+  $("tcIns").innerHTML=ext.map(c=>`<label>1 ${esc(sym(c))} = <input type="text" class="money tc-in" data-cur="${c}" inputmode="decimal" autocomplete="off" placeholder="${TC_EJ[c]||"0,00"}" value="${tasa(c)||""}" aria-label="Tipo de cambio de ${esc(nombreCur(c))}"> Bs</label>`).join("");
+}
+document.addEventListener("change",e=>{const i=e.target.closest(".tc-in");if(!i)return;const c=i.dataset.cur,v=r4(i.value);state.config=Object.assign({},state.config,{["tc"+c]:v>0?v:0});i.blur();render();safe(guardar(),"Tipo de cambio guardado")});
 
 /* ---------- Ajustes ---------- */
 function admLista(kind){
@@ -1083,7 +1111,26 @@ function admLista(kind){
       ${fijo?"":`<button class="ghost small" data-act="ren" data-kind="${kind}" data-name="${esc(c)}">Renombrar</button><button class="ghost small danger" data-act="del-${kind}" data-name="${esc(c)}">Quitar</button>`}</div>`;
   }).join("");
 }
+function renderMonFavs(){
+  const q=sinTildes($("monBuscar").value.trim()),f=favs();
+  const fila=c=>`<label class="mon-row"><input type="checkbox" class="fav-cb" data-cur="${c}"${f.includes(c)?" checked":""}${c==="BOB"?" disabled":""}> <span>${esc(nombreCur(c))}${SIMB[c]&&SIMB[c]!==c?` (${esc(SIMB[c])})`:""}${c==="BOB"?" · base":""}</span><span class="code">${c}</span></label>`;
+  const match=c=>!q||sinTildes(nombreCur(c)+" "+c+" "+(SIMB[c]||"")).includes(q);
+  const fv=f.filter(match),resto=CUR.filter(c=>!f.includes(c)&&match(c)).sort((a,b)=>nombreCur(a).localeCompare(nombreCur(b),"es"));
+  $("favInfo").textContent=plural(f.length,"favorita","favoritas");
+  const box=$("admMonedas"),sc=box.scrollTop;
+  box.innerHTML=(fv.length?`<div class="mon-sep">Favoritas</div>`+fv.map(fila).join(""):"")+(resto.length?`<div class="mon-sep">Todas las monedas</div>`+resto.map(fila).join(""):"")||`<div class="note" style="padding:10px 0">No se encontró esa moneda.</div>`;
+  box.scrollTop=sc;
+}
+$("monBuscar").addEventListener("input",renderMonFavs);
+document.addEventListener("change",e=>{
+  const cb=e.target.closest(".fav-cb");if(!cb)return;
+  const c=cb.dataset.cur;let f=favs().slice();
+  if(cb.checked){if(!f.includes(c))f.push(c)}else f=f.filter(x=>x!==c||x==="BOB");
+  state.config.favs=f;llenarSelects();render();
+  safe(guardar(),cb.checked?nombreCur(c)+" agregada a favoritas":nombreCur(c)+" quitada de favoritas");
+});
 function renderAjustes(){
+  renderMonFavs();
   $("ajDesde").value=state.config.dispDesde||"";$("ajDesdeX").hidden=!state.config.dispDesde;
   const act=document.activeElement;if(!(act&&act.classList.contains("presup")))$("admCats").innerHTML=admLista("cat");
   $("admFuentes").innerHTML=admLista("fuente");
@@ -1125,13 +1172,13 @@ $("mesHoy").onclick=()=>{$("mes").value=mesActual();ui.chartSel=null;render()};
 ["gBuscar","gFCat","gFMet"].forEach(id=>$(id).addEventListener("input",render));
 
 /* ---------- Gasto ---------- */
-const ultMoneda=k=>{try{const v=localStorage.getItem(LS+".mon."+k);return CUR.includes(v)?v:"BOB"}catch(e){return "BOB"}};
+const ultMoneda=k=>{try{const v=localStorage.getItem(LS+".mon."+k);return favs().includes(v)?v:"BOB"}catch(e){return "BOB"}};
 const setUltMoneda=(k,v)=>{try{localStorage.setItem(LS+".mon."+k,v)}catch(e){}};
 const fechaNueva=()=>{const m=mesSel();return m===mesActual()?hoy():m+"-01"};
 function abrirGasto(g){
   setTab("gastos");ui.editGasto=g?g.id:null;
   $("gDesc").value=g?g.desc:"";$("gMonto").value=g?g.monto:"";$("gFecha").value=g?g.fecha:fechaNueva();
-  $("gMoneda").value=g?curDe(g):ultMoneda("g");
+  setCur($("gMoneda"),g?curDe(g):ultMoneda("g"));
   $("gCat").value=g&&cats().includes(g.cat)?g.cat:cats()[0];$("gMetodo").value=g&&METODOS.includes(g.metodo)?g.metodo:"Efectivo";
   if(g&&!cats().includes(g.cat)){$("gCat").insertAdjacentHTML("beforeend",`<option>${esc(g.cat)}</option>`);$("gCat").value=g.cat}
   $("gTitulo").textContent=g?"Editar gasto":"Nuevo gasto";$("gSave").textContent=g?"Guardar cambios":"Guardar gasto";
@@ -1157,7 +1204,7 @@ $("fGasto").addEventListener("submit",e=>{
 function abrirIngreso(x){
   setTab("ingresos");ui.editIngreso=x?x.id:null;
   $("iDesc").value=x?x.desc:"";$("iMonto").value=x?x.monto:"";$("iFecha").value=x?x.fecha:fechaNueva();
-  $("iMoneda").value=x?curDe(x):ultMoneda("i");
+  setCur($("iMoneda"),x?curDe(x):ultMoneda("i"));
   $("iFuente").value=x&&fuentes().includes(x.fuente)?x.fuente:fuentes()[0];
   if(x&&!fuentes().includes(x.fuente)){$("iFuente").insertAdjacentHTML("beforeend",`<option>${esc(x.fuente)}</option>`);$("iFuente").value=x.fuente}
   $("iTitulo").textContent=x?"Editar ingreso":"Nuevo ingreso";$("iSave").textContent=x?"Guardar cambios":"Guardar ingreso";
@@ -1224,11 +1271,11 @@ function abrirFondo(f){
   setTab("ahorro");ui.editFondo=f?f.id:null;$("fFondo").reset();
   $("fInicial").closest(".field").hidden=!!f;
   if(f){$("fNombre").value=f.nombre||"";$("fMeta").value=f.meta||"";$("fFecha").value=f.fechaObj||""}
-  $("fMoneda").value=f?monedaDe(f):"BOB";curLbl();
+  llenarSelects();setCur($("fMoneda"),f?monedaDe(f):"BOB");curLbl();
   $("fTitulo").textContent=f?"Editar fondo":"Nuevo fondo de ahorro";$("fSave").textContent=f?"Guardar cambios":"Crear fondo";
   $("fFondo").hidden=false;$("fNombre").focus();
 }
-function curLbl(){document.querySelectorAll(".curLbl").forEach(e=>e.textContent=SIMB[$("fMoneda").value])}
+function curLbl(){document.querySelectorAll(".curLbl").forEach(e=>e.textContent=sym($("fMoneda").value))}
 $("fMoneda").onchange=curLbl;
 $("btnFondo").onclick=()=>abrirFondo(null);
 $("fCancel").onclick=()=>{$("fFondo").hidden=true;ui.editFondo=null};
@@ -1244,7 +1291,7 @@ $("fFondo").addEventListener("submit",e=>{
 /* ---------- Gasto fijo ---------- */
 function abrirFijo(f){
   setTab("ajustes");ui.editFijo=f?f.id:null;
-  $("fjDesc").value=f?f.desc:"";$("fjMonto").value=f?f.monto:"";$("fjMoneda").value=f?curDe(f):"BOB";$("fjDia").value=f?f.dia:"";
+  $("fjDesc").value=f?f.desc:"";$("fjMonto").value=f?f.monto:"";setCur($("fjMoneda"),f?curDe(f):"BOB");$("fjDia").value=f?f.dia:"";
   $("fjCat").value=f&&cats().includes(f.cat)?f.cat:(cats().includes("Vivienda y servicios")?"Vivienda y servicios":cats()[0]);
   $("fjMetodo").value=f&&METODOS.includes(f.metodo)?f.metodo:"Transferencia";$("fjAuto").checked=f?!!f.auto:false;
   $("fjTitulo").textContent=f?"Editar gasto fijo":"Nuevo gasto fijo";
@@ -1337,9 +1384,9 @@ document.addEventListener("submit",e=>{
     ui.open=null;safe(store.update("ahorros",id,{movs:(fo.movs||[]).concat([mov])}),kind==="dep"?"Depósito guardado":"Retiro guardado");return;
   }else if(kind==="ajuste"){
     const c=f.dataset.cur,real=$("aj-m").value.trim();if(real===""){toast("Escribe cuánto tienes");return}
-    const delta=r2(r2(real)-disponible()[c]);ui.open=null;
+    const delta=r2(r2(real)-(disponible()[c]||0));ui.open=null;
     if(Math.abs(delta)<0.005){render();toast("Ya coincide, no hace falta ajustar");return}
-    safe(store.add("ajustes",{moneda:c,monto:delta,fecha:hoy(),nota:"Ajuste de saldo",creado:Date.now()}),"Saldo en "+SIMB[c]+" ajustado");return;
+    safe(store.add("ajustes",{moneda:c,monto:delta,fecha:hoy(),nota:"Ajuste de saldo",creado:Date.now()}),"Saldo en "+sym(c)+" ajustado");return;
   }else if(kind==="ren"){
     const k=f.dataset.kind,viejo=f.dataset.name,nuevo=$("ren-v").value.trim();
     const list=k==="cat"?cats():fuentes();
