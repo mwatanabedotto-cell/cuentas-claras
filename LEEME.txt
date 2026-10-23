@@ -6,7 +6,7 @@ La forma gratis más simple es GitHub Pages:
 1. Entra a github.com e inicia sesión (o crea una cuenta gratis).
 2. Crea un repositorio nuevo, por ejemplo "cuentas-claras", público.
 3. Toca "uploading an existing file" y sube TODO el contenido de esta carpeta
-   (index.html, manifest.webmanifest, sw.js y la carpeta icons). Confirma con "Commit changes".
+   (index.html, i18n.js, manifest.webmanifest, sw.js y la carpeta icons). Confirma con "Commit changes".
 4. Ve a Settings > Pages. En "Branch" elige "main" y "/ (root)". Guarda.
 5. En 1–2 minutos tendrás la dirección: https://TU-USUARIO.github.io/cuentas-claras/
 
@@ -33,3 +33,12 @@ NOVEDADES (versión 2)
 - Buscador y filtros de gastos, "Deshacer" al borrar, tema claro/oscuro, aviso de respaldo.
 - Al actualizar desde la versión 1, el disponible empieza a contar desde ese día:
   usa "Ajustar saldo" en la pestaña Monedas para poner cuánto tienes de verdad.
+
+NOVEDADES (versión 3)
+- Idiomas: español, português, English, français, Deutsch e italiano (Ajustes o arriba a la derecha).
+  Los textos están en i18n.js; súbelo junto con index.html.
+- País: eliges tu país en Ajustes y su moneda pasa a ser la moneda base de todos los totales.
+  Cada moneda muestra sus países y se puede buscar por país.
+- Las deudas ahora también pueden estar en cualquier moneda.
+- Quien abre la app por primera vez recibe el idioma y el país de su teléfono;
+  quien ya la usaba sigue en español y en bolivianos.
